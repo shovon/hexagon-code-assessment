@@ -1,9 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
+using App;
+using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Mvc;
 
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddConnections();
 
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
@@ -21,25 +27,22 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+const string SessionCookieString = "session";
 
-app.MapGet("/weatherforecast", () =>
+app.Use(async (context, next) =>
 {
-    var forecast = Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast")
-.WithOpenApi();
+    var sessionCookie = context.Request.Headers.Cookie.FirstOrDefault(x => (x ?? "").StartsWith(SessionCookieString + "="));
+    if (sessionCookie == null)
+    {
+        context.Response.Cookies.Append("session", Guid.NewGuid().ToString(), new CookieOptions()
+        {
+            Path = "/",
+            HttpOnly = true
+        });
+    }
+
+    await next(context);
+});
 
 var items = new Item[]
 {
@@ -57,13 +60,17 @@ var items = new Item[]
     new ("12", "Analogue Camera", "Film Cameras", 349.99m, "https://picsum.photos/id/250/800/600", "Lorem ipsum dolor", 100)
 };
 
-
 app.MapGet("/items", () =>
 {
     return items;
 })
 .WithName("Items")
 .WithOpenApi();
+
+// app.MapPost("/cart", async (context) =>
+// {
+//     var requestBody = await context.Request.Body.ReadExactlyAsync()
+// });
 
 app.MapPost("/checkout", (CheckoutItem[] checkedOutItems) =>
 {
@@ -74,19 +81,43 @@ app.MapPost("/checkout", (CheckoutItem[] checkedOutItems) =>
         var something = dictionary[element.Id];
         if (something != null)
         {
-            something.InventoryRemaining--;
+            something.InventoryRemaining -= element.Count;
         }
     }
 })
 .WithName("Checkout")
 .WithOpenApi();
 
-app.Run();
+var carts = new Carts<string, string>();
 
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
+app.MapGet("/cart", (HttpContext context) =>
 {
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
+    var sessionCookie = context.Request.Headers.Cookie.FirstOrDefault(x => (x ?? "").StartsWith(SessionCookieString + "="));
+    if (sessionCookie == null)
+    {
+        // 500 error because a cookie should have been set by default.
+        context.Response.StatusCode = 500;
+        return null;
+    }
+
+    return carts.GetCart(sessionCookie ?? "");
+});
+
+app.MapPost("/cart", (CartItem cartItem, HttpContext context) =>
+{
+    var sessionCookie = context.Request.Headers.Cookie.FirstOrDefault(x => (x ?? "").StartsWith(SessionCookieString + "="));
+    if (sessionCookie == null)
+    {
+        // 500 error because a cookie should have been set by default.
+        context.Response.StatusCode = 500;
+        return;
+    }
+
+    carts.
+
+});
+
+app.Run();
 
 record Item(string Id, string Name, string Category, decimal Value, string ImageUrl, string? Description)
 {
@@ -97,3 +128,5 @@ record Item(string Id, string Name, string Category, decimal Value, string Image
     }
 }
 record CheckoutItem(string Id, int Count);
+
+record CartItem(string Id);
