@@ -98,7 +98,33 @@ function CartItem({ item, countInCart }: { countInCart: number; item: Item }) {
 						/>
 					</div>
 					<div>
-						<button className="text-blue-700 pointer" onClick={() => {}}>
+						<button
+							className="text-blue-700 pointer"
+							onClick={() => {
+								fetch("http://localhost:5095/cart/set", {
+									method: "POST",
+									credentials: "include",
+									headers: {
+										"Content-Type": "application/json",
+									},
+									body: JSON.stringify({
+										id: item.id,
+										count: 0,
+									}),
+								})
+									.then((response) => {
+										if (response.status >= 400) {
+											throw new Error(
+												"Got a response code greater than or equal to 400"
+											);
+										}
+									})
+									.catch((e) => {
+										console.error(e);
+										alert("Failed to add to cart");
+									});
+							}}
+						>
 							Delete
 						</button>
 					</div>
