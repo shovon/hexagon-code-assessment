@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import useSWR from "swr";
 import { pluralizer } from "../../lib/pluralizer";
+import Link from "next/link";
 
 type Item = {
 	id: string;
@@ -31,7 +32,7 @@ function UpdateBox({
 
 	return (
 		<div className="flex">
-			<div className="mr-2">
+			<div className="">
 				<input
 					className="w-10 bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-1.5 dark:bg-gray-700 dark:border-gray-600 dark:placeholder-gray-400 dark:text-white dark:focus:ring-blue-500 dark:focus:border-blue-500"
 					style={{
@@ -170,31 +171,39 @@ export default function Cart() {
 		.reduce((prev, next) => prev + next, 0);
 
 	return (
-		<div className="p-10 my-0 mx-auto mt-10 m-5 max-w-[1000px]">
-			<div>
-				{Object.entries(cart)
-					.filter(([key]) => itemsMap.has(key))
-					.map(([key, value]) => {
-						return (
-							<CartItem
-								key={key}
-								countInCart={value}
-								item={itemsMap.get(key)!}
-							/>
-						);
-					})}
-			</div>
-			<div>
-				<p className="text-right text-lg">
-					Subtotal (
-					{`${totalItemsCount} ${pluralizer("item", totalItemsCount)}`}):{" "}
-					<span className="font-bold">
-						{new Intl.NumberFormat("en-US", {
-							style: "currency",
-							currency: "CAD",
-						}).format(subTotal)}
-					</span>
-				</p>
+		<div className="p-5">
+			<Link href="/">Home</Link>
+			<div className="p-10 my-0 mx-auto mt-10 m-5 max-w-[1000px]">
+				<div>
+					{Object.entries(cart)
+						.filter(([key]) => itemsMap.has(key))
+						.map(([key, value]) => {
+							return (
+								<CartItem
+									key={key}
+									countInCart={value}
+									item={itemsMap.get(key)!}
+								/>
+							);
+						})}
+				</div>
+				<div>
+					<p className="text-right text-lg">
+						Subtotal (
+						{`${totalItemsCount} ${pluralizer("item", totalItemsCount)}`}):{" "}
+						<span className="font-bold">
+							{new Intl.NumberFormat("en-US", {
+								style: "currency",
+								currency: "CAD",
+							}).format(subTotal)}
+						</span>
+					</p>
+				</div>
+				<div className="text-right mt-4">
+					<button className="inline-block font-bold bg-yellow-300 p-4 w-[500px] text-xl pointer">
+						Buy
+					</button>
+				</div>
 			</div>
 		</div>
 	);

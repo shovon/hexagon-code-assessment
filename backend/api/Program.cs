@@ -6,7 +6,6 @@ using App;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 
-
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddConnections();
@@ -97,19 +96,33 @@ app.MapGet("/items", () =>
 .WithName("Items")
 .WithOpenApi();
 
-// app.MapPost("/cart", async (context) =>
-// {
-//     var requestBody = await context.Request.Body.ReadExactlyAsync()
-// });
+var carts = new Carts<string, string>();
 
-app.MapPost("/checkout", () =>
+
+app.MapPost("/checkout", (HttpContext context) =>
 {
+    var sessionCookie = (string)context.Items["cookie"];
+    if (sessionCookie == null)
+    {
+        // 500 error because a cookie should have been set by default.
+        context.Response.StatusCode = 500;
+        return Results.Json(null);
+    }
+
     var dictionary = items.ToDictionary(item => item.Id);
+    var cart = carts.GetCart(sessionCookie);
+
+    foreach (var element in cart)
+    {
+        int count = dictionary[element.Key].InventoryRemaining;
+        dictionary[element.Key].InventoryRemaining = count - element.Value;
+    }
+
+    return Results.Json(null);
 })
 .WithName("Checkout")
 .WithOpenApi();
 
-var carts = new Carts<string, string>();
 
 app.MapGet("/cart", (HttpContext context) =>
 {

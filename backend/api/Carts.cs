@@ -17,6 +17,7 @@ class Carts<T, K>
 		}
 		return carts[ownerKey];
 	}
+
 	public Dictionary<K, int> GetCart(T ownerKey)
 	{
 		Monitor.Enter(_lockObject);
@@ -63,6 +64,20 @@ class Carts<T, K>
 				itemCount = cart[itemId];
 			}
 			cart[itemId] = itemCount + 1;
+		}
+		finally
+		{
+			Monitor.Exit(_lockObject);
+		}
+	}
+
+	public void ClearCart(T ownerKey)
+	{
+		try
+		{
+			Monitor.Enter(_lockObject);
+			var cart = getCart(ownerKey);
+			cart.Clear();
 		}
 		finally
 		{
