@@ -1,33 +1,72 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace App;
 
 class Carts<T, K>
 	where T : notnull
 	where K : notnull
 {
-	private Dictionary<T, Dictionary<K, int>> carts = new Dictionary<T, Dictionary<K, V>>();
+	private Dictionary<T, Dictionary<K, int>> carts = new Dictionary<T, Dictionary<K, int>>();
+	private readonly object _lockObject = new object();
 
+	private Dictionary<K, int> getCart(T ownerKey)
+	{
+		if (!carts.ContainsKey(ownerKey))
+		{
+			carts[ownerKey] = new Dictionary<K, int>();
+		}
+		return carts[ownerKey];
+	}
 	public Dictionary<K, int> GetCart(T ownerKey)
 	{
-		Dictionary<K, int>? cart;
-		var cartFound = carts.TryGetValue(ownerKey, out cart);
-		if (!cartFound || cart != null)
+		Monitor.Enter(_lockObject);
+		try
 		{
-			cart = new Dictionary<K, int>();
-			carts.Add(ownerKey, cart);
+			return getCart(ownerKey);
+		}
+		finally
+		{
+			Monitor.Exit(_lockObject);
 		}
 
-		return cart ?? throw new Exception("A fatal error occurred");
 	}
 
-	public void AddTocart(T ownerKey, K itemId)
+	public void SetCartItem(T ownerKey, K itemId, int count)
 	{
-		int count;
-		var cart = GetCart(ownerKey);
-		var itemCount = GetCart(ownerKey);
-		var exists = cart.TryGetValue(itemId, out count);
-		if (!exists)
+		try
 		{
+			Monitor.Enter(_lockObject);
+			var cart = getCart(ownerKey);
+			if (count <= 0)
+			{
+				cart.Remove(itemId);
+				return;
+			}
 
+			cart[itemId] = count;
+		}
+		finally
+		{
+			Monitor.Exit(_lockObject);
+		}
+	}
+
+	public void AddCartItem(T ownerKey, K itemId)
+	{
+		try
+		{
+			Monitor.Enter(_lockObject);
+			var cart = getCart(ownerKey);
+			int itemCount = 0;
+			if (cart.ContainsKey(itemId))
+			{
+				itemCount = cart[itemId];
+			}
+			cart[itemId] = itemCount + 1;
+		}
+		finally
+		{
+			Monitor.Exit(_lockObject);
 		}
 	}
 }

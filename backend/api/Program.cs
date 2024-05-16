@@ -10,7 +10,6 @@ using Microsoft.AspNetCore.Mvc;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddConnections();
-
 // Add services to the container.
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -31,15 +30,46 @@ const string SessionCookieString = "session";
 
 app.Use(async (context, next) =>
 {
-    var sessionCookie = context.Request.Headers.Cookie.FirstOrDefault(x => (x ?? "").StartsWith(SessionCookieString + "="));
+    context.Response.Headers["Access-Control-Allow-Origin"] = new[] { (string)context.Request.Headers["Origin"] };
+    context.Response.Headers["Access-Control-Allow-Headers"] = new[] { "Origin, X-Requested-With, Content-Type, Accept" };
+    context.Response.Headers["Access-Control-Allow-Methods"] = new[] { "GET, POST, PUT, DELETE, OPTIONS" };
+    context.Response.Headers["Access-Control-Allow-Credentials"] = new[] { "true" };
+
+    if (context.Request.Method == "OPTIONS")
+    {
+        context.Response.StatusCode = 200;
+        await context.Response.WriteAsync("OK");
+        return;
+    }
+
+    await next(context);
+});
+
+app.Use(async (context, next) =>
+{
+    var sessionCookie = context.Request.Cookies[SessionCookieString];
+
+    var cookieOptions = new CookieOptions()
+    {
+        HttpOnly = true,
+        Secure = true, // Ensure HTTPS is used
+        SameSite = SameSiteMode.None, // Adjust as needed
+        MaxAge = TimeSpan.FromDays(365),
+    };
+
     if (sessionCookie == null)
     {
-        context.Response.Cookies.Append("session", Guid.NewGuid().ToString(), new CookieOptions()
-        {
-            Path = "/",
-            HttpOnly = true
-        });
+        var newCookie = Guid.NewGuid().ToString();
+        context.Response.Cookies.Append("session", Guid.NewGuid().ToString(), cookieOptions);
+        context.Items["cookie"] = newCookie;
     }
+    else
+    {
+        var existingCookie = sessionCookie;
+        context.Response.Cookies.Append("session", existingCookie, cookieOptions);
+        context.Items["cookie"] = existingCookie;
+    }
+
 
     await next(context);
 });
@@ -72,18 +102,9 @@ app.MapGet("/items", () =>
 //     var requestBody = await context.Request.Body.ReadExactlyAsync()
 // });
 
-app.MapPost("/checkout", (CheckoutItem[] checkedOutItems) =>
+app.MapPost("/checkout", () =>
 {
     var dictionary = items.ToDictionary(item => item.Id);
-
-    foreach (var element in checkedOutItems)
-    {
-        var something = dictionary[element.Id];
-        if (something != null)
-        {
-            something.InventoryRemaining -= element.Count;
-        }
-    }
 })
 .WithName("Checkout")
 .WithOpenApi();
@@ -92,20 +113,20 @@ var carts = new Carts<string, string>();
 
 app.MapGet("/cart", (HttpContext context) =>
 {
-    var sessionCookie = context.Request.Headers.Cookie.FirstOrDefault(x => (x ?? "").StartsWith(SessionCookieString + "="));
+    var sessionCookie = (string)context.Items["cookie"];
     if (sessionCookie == null)
     {
         // 500 error because a cookie should have been set by default.
         context.Response.StatusCode = 500;
-        return null;
+        return Results.Json(null);
     }
 
-    return carts.GetCart(sessionCookie ?? "");
+    return Results.Json(carts.GetCart(sessionCookie));
 });
 
-app.MapPost("/cart", (CartItem cartItem, HttpContext context) =>
+app.MapPost("/cart/set", (SetCartItem cartItem, HttpContext context) =>
 {
-    var sessionCookie = context.Request.Headers.Cookie.FirstOrDefault(x => (x ?? "").StartsWith(SessionCookieString + "="));
+    var sessionCookie = (string)context.Items["cookie"];
     if (sessionCookie == null)
     {
         // 500 error because a cookie should have been set by default.
@@ -113,8 +134,20 @@ app.MapPost("/cart", (CartItem cartItem, HttpContext context) =>
         return;
     }
 
-    carts.
+    carts.SetCartItem(sessionCookie, cartItem.Id, cartItem.Count);
+});
 
+app.MapPost("/cart/add", (AddCartItem cartItem, HttpContext context) =>
+{
+    var sessionCookie = (string)context.Items["cookie"];
+    if (sessionCookie == null)
+    {
+        // 500 error because a cookie should have been set by default.
+        context.Response.StatusCode = 500;
+        return;
+    }
+
+    carts.AddCartItem(sessionCookie, cartItem.Id);
 });
 
 app.Run();
@@ -128,5 +161,5 @@ record Item(string Id, string Name, string Category, decimal Value, string Image
     }
 }
 record CheckoutItem(string Id, int Count);
-
-record CartItem(string Id);
+record AddCartItem(string Id, int Count);
+record SetCartItem(string Id, int Count);
