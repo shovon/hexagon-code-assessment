@@ -226,7 +226,26 @@ export default function Cart() {
 					</p>
 				</div>
 				<div className="text-right mt-4">
-					<button className="inline-block font-bold bg-yellow-300 p-4 w-[500px] text-xl pointer">
+					<button
+						className="inline-block font-bold bg-yellow-300 p-4 w-[500px] text-xl pointer"
+						onClick={() => {
+							fetch("http://localhost:5095/checkout", {
+								method: "POST",
+								credentials: "include",
+							})
+								.then((response) => {
+									if (response.status >= 400) {
+										throw new Error(
+											"Got a response code greater than or equal to 400"
+										);
+									}
+								})
+								.catch((e) => {
+									console.error(e);
+									alert("Failed to clear cart");
+								});
+						}}
+					>
 						Buy
 					</button>
 				</div>
